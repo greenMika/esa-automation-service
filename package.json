@@ -1,0 +1,31 @@
+{
+  "name": "esa-automation-final",
+  "version": "1.0.0",
+  "description": "A tool to quickly audit all new Debian Security Advisories and check if the Greenbone Appliance is affected",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node ./dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "pretty:check": "prettier --check ./src",
+    "pretty:format": "prettier --write ./src",
+    "lint": "eslint src"
+  },
+  "author": "Mika Greif",
+  "license": "ISC",
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^5.47.1",
+    "command-line-args": "^5.2.1",
+    "command-line-usage": "^6.1.3",
+    "eslint": "^8.30.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "nunjucks": "^3.2.3",
+    "prettier": "^2.8.1",
+    "puppeteer": "^19.2.2",
+    "table": "^6.8.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.9.4"
+  }
+}
