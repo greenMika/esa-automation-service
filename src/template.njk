@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="rendered.css">
+    <title>ESA Results</title>
+    <script>
+        const showAffected = () => {
+            unaffected.forEach(a => a.classList.add("hide"))
+            affected.forEach(a => a.classList.remove("hide"))
+        }
+        const showUnaffected = () => {
+            affected.forEach(a => a.classList.add("hide"))
+            unaffected.forEach(a => a.classList.remove("hide"))
+        }
+        const showAll = () => {
+            unaffected.forEach(a => a.classList.remove("hide"))
+            affected.forEach(a => a.classList.remove("hide"))
+        }
+    </script>
+</head>
+<body>
+    <h1>ESA Results</h1>
+    <button onclick="showAffected()">Show Affected</button>
+    <button onclick="showUnaffected()">Show Unaffected</button>
+    <button onclick="showAll()">Show All</button>
+    <table id="table">
+        <thead>
+            <tr>
+                <th>Summary</td>
+                <th>Severity</td>
+                <th>Library</td>
+                <th>Current version</td>
+                <th>Fixed version</td>
+                <th>Similar Names</td>
+                <th>Actions</td>
+            </tr>
+        </thead>
+        <tbody>
+            {% for result in results %}
+              <tr class="{% if result.containsPackage %}affected{% else %}unaffected{% endif %}" >
+                <td><a href={{result.issueLink}} target="_blank">{{ result.summaryText }}</a></td>
+                <td>
+                    <span {% if result.highestCVE.CVSS3SeverityString %}class="severity-badge {{ result.highestCVE.CVSS3SeverityString }}"{% endif %}>
+                        {% if result.highestCVE.CVSS3SeverityInt !== 0 %}{{ result.highestCVE.CVSS3SeverityInt }}{% else %}not found{% endif %}
+                    </span>
+                </td>
+                <td>{{ result.library }}</td>
+                <td>{{ result.currentVersion }}</td>
+                <td>{{ result.fixedVersion }}</td>
+                <td>{{ result.similarNames | join(",\n") | striptags(true) | escape | nl2br }}</td>
+                <td><button onclick="(() => { navigator.clipboard.writeText(`{{ result.shortDescriptionFormatted }}`) })()">Copy</button></td>
+              </tr>
+            {% else %}
+              <tr>This would display if the 'item' collection were empty</tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <script>
+        var affected = document.querySelectorAll(".affected")
+        var unaffected = document.querySelectorAll(".unaffected")
+        showAffected()
+    </script>
+</body>
+</html>
