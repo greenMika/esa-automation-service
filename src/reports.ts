@@ -1,15 +1,18 @@
 import * as fs from "fs"
 import { table } from "table"
 import nunjucks from "nunjucks"
-import { TPotentialVulnerability } from "./types"
+import {
+    TPotentialVulnerability,
+    TPotentialVulnerabilitySerialized,
+} from "./types"
 
 export const printAffected = () => {
     if (!fs.existsSync("results.json"))
         return console.error("Please scrape the data first")
-    const results = JSON.parse(fs.readFileSync("results.json").toString())
-    const affected = results.filter(
-        (res: TPotentialVulnerability) => res.containsPackage
+    const results: TPotentialVulnerabilitySerialized[] = JSON.parse(
+        fs.readFileSync("results.json").toString()
     )
+    const affected = results.filter((res) => res.containsPackage)
     console.log(affected[0])
     const headers = [
         "ESA",
@@ -20,14 +23,14 @@ export const printAffected = () => {
         "Similar Names",
         "Highest CVSS",
     ]
-    const rows = affected.map((res: TPotentialVulnerability) => [
+    const rows = affected.map((res) => [
         `${res.issueLink}\n${res.system}`,
         res.library,
         res.currentVersion,
         res.fixedVersion,
-        res.CVEs.join(",\n"),
+        res.CVEs.map((cve) => cve.cveIdentifier).join(",\n"),
         res.similarNames.join(",\n"),
-        `${res.highestCVE?.CVSS3SeverityInt} - ${res.highestCVE?.CVSS3SeverityString}`,
+        `${res.highestCVE.highestSeverity} - ${res.highestCVE?.highestSeverityTerm}`,
     ])
     console.log(table([headers, ...rows]))
 }

@@ -5,15 +5,12 @@ import * as path from "path"
 config({ path: path.resolve(__dirname, "../.env") })
 import * as fs from "fs"
 import {
-    EApplianceSystem,
-    ESeverityString,
-    TCVEDetails,
-    TCVEParcelDetails,
-    THighestCVEParcel,
     TJiraIssue,
     TPotentialVulnerability,
+    TPotentialVulnerabilitySerialized,
     TRelizahSerialized,
 } from "./types"
+import { CVE, CVEGroup, TCVESerialized } from "./services/CVE"
 
 const username = process.env.JIRA_USERNAME
 const password = process.env.JIRA_PASSWORD
@@ -23,7 +20,10 @@ if (!username || !password)
 
 const relizahPath = "relizah.json"
 
-const saveResult = (name: string, results: TPotentialVulnerability[]) => {
+const saveResult = (
+    name: string,
+    results: TPotentialVulnerabilitySerialized[]
+) => {
     fs.writeFileSync(name, JSON.stringify(results))
     console.log("Saved to results.json")
 }
@@ -238,182 +238,6 @@ const saveCookiesToFile = async (page: Page) => {
     await fs.writeFileSync("cookies.json", JSON.stringify(cookies))
 }
 
-const scrapeCVEs = async (browser: Browser, CVEs: string[] = []) => {
-    const data: TCVEDetails[] = []
-    for (const cveIndex in CVEs) {
-        const cve = CVEs[cveIndex]
-        const dataParcel: TCVEDetails = {
-            cve,
-            nvd: {
-                CVSS3SeverityInt: 0,
-                CVSS3SeverityString: ESeverityString.UNDEFINED,
-            },
-            redhat: {
-                CVSS3SeverityInt: 0,
-                CVSS3SeverityString: ESeverityString.UNDEFINED,
-            },
-        }
-        await scrapeNVD(await browser.newPage(), cve).then((parcel) => {
-            if (parcel) {
-                dataParcel.nvd = parcel
-            }
-        })
-        await scrapeRedhat(await browser.newPage(), cve).then((parcel) => {
-            if (parcel) {
-                dataParcel.redhat = parcel
-            }
-        })
-
-        data.push(dataParcel)
-    }
-    return data
-}
-
-const scrapeNVD = async (page: Page, cve: string) => {
-    try {
-        console.log(` - scraping nvd ${cve}`)
-        await page.goto("https://nvd.nist.gov/vuln/detail/" + cve)
-        await page.waitForSelector(".severityDetail", {
-            timeout: 5000,
-        })
-        const result: TCVEParcelDetails =
-            (await page.$eval("#Cvss3NistCalculatorAnchor", (elem) => {
-                const [CVSS3SeverityInt, CVSS3SeverityString] =
-                    elem?.textContent?.split(" ") || ["0", "UNDEFINED"]
-                return {
-                    CVSS3SeverityInt: parseInt(CVSS3SeverityInt),
-                    CVSS3SeverityString,
-                }
-            })) ||
-            page.$eval("#Cvss3CnaCalculatorAnchor", (elem) => {
-                const [CVSS3SeverityInt, CVSS3SeverityString] =
-                    elem?.textContent?.split(" ") || ["0", "UNDEFINED"]
-                return {
-                    CVSS3SeverityInt: parseInt(CVSS3SeverityInt),
-                    CVSS3SeverityString,
-                }
-            })
-        console.log("SCRAPED NVD FOR", cve, "WITH", result)
-        return result
-    } catch (err) {
-        console.log("Could not scrape nvd", err)
-    } finally {
-        page.close()
-    }
-}
-
-const scrapeRedhat = async (page: Page, cve: string) => {
-    try {
-        console.log(` - scraping redhat ${cve}`)
-
-        await page.goto("https://access.redhat.com/security/cve/" + cve)
-        await page.waitForSelector("h1.headline", {
-            timeout: 5000,
-        })
-
-        const result: TCVEParcelDetails = await page.$$eval(
-            ".stat-number",
-            (elem) => {
-                const CVSS3SeverityInt = elem[1].textContent || "0"
-                const CVSS3SeverityString = elem[0].textContent || "UNDEFINED"
-                return {
-                    CVSS3SeverityInt: parseInt(CVSS3SeverityInt),
-                    CVSS3SeverityString,
-                }
-            }
-        )
-        console.log("SCRAPED redhat FOR", cve, "WITH", result)
-        return result
-    } catch (err) {
-        console.log("Could not scrape redhat", err)
-    } finally {
-        page.close()
-    }
-}
-
-const mapNumbers = (int: number) => {
-    if (int >= 9) {
-        //Critical
-        return "CRITICAL"
-    }
-
-    if (int >= 7) {
-        //High
-        return "HIGH"
-    }
-
-    if (int >= 4) {
-        //Medium
-        return "MEDIUM"
-    }
-
-    if (int > 0) {
-        //Low
-        return "LOW"
-    }
-
-    return "LOG"
-}
-
-const getHighestCVEParcel = (highestCVEs: THighestCVEParcel) => {
-    const highestOverall = Object.keys(highestCVEs).reduce<TCVEParcelDetails>(
-        (acc, curr) => {
-            if (
-                highestCVEs[curr as keyof typeof highestCVEs].CVSS3SeverityInt >
-                acc.CVSS3SeverityInt
-            )
-                return {
-                    CVSS3SeverityInt:
-                        highestCVEs[curr as keyof typeof highestCVEs]
-                            .CVSS3SeverityInt,
-                    CVSS3SeverityString: mapNumbers(
-                        highestCVEs[curr as keyof typeof highestCVEs]
-                            .CVSS3SeverityInt
-                    ),
-                }
-            return acc
-        },
-        {
-            CVSS3SeverityInt: 0.0,
-            CVSS3SeverityString: "UNDEFINED",
-        }
-    )
-
-    return highestOverall
-}
-
-const getHighestCVE = (cveData: TCVEDetails[] = []) => {
-    const highest: THighestCVEParcel = cveData.reduce(
-        (acc, curr) => {
-            console.log("ACC", acc, "CURR", curr)
-            const nvd =
-                curr.nvd?.CVSS3SeverityInt > acc?.nvd?.CVSS3SeverityInt
-                    ? curr.nvd
-                    : acc.nvd
-            const redhat =
-                curr.redhat?.CVSS3SeverityInt > acc?.redhat?.CVSS3SeverityInt
-                    ? curr.redhat
-                    : acc.redhat
-            return {
-                nvd,
-                redhat,
-            }
-        },
-        {
-            nvd: {
-                CVSS3SeverityInt: 0.0,
-                CVSS3SeverityString: "UNDEFINED",
-            },
-            redhat: {
-                CVSS3SeverityInt: 0.0,
-                CVSS3SeverityString: "UNDEFINED",
-            },
-        }
-    )
-    console.log("Found Highest CVE", highest)
-    return getHighestCVEParcel(highest)
-}
-
 const parseIssues = async (
     browser: Browser,
     issues: TJiraIssue[],
@@ -422,7 +246,7 @@ const parseIssues = async (
 ) => {
     const page = await login(browser)
     console.log("parsing", issues.length)
-    const results = []
+    const results: TPotentialVulnerability[] = []
     for (const issueIndex in issues) {
         const issue = issues[issueIndex]
         if (!issue.library || !issue.system) {
@@ -457,38 +281,39 @@ const parseIssues = async (
                     /fixed\s+in\s+version (.+)\.\s+\w/
                 )?.[1] ||
                 shortDescription.match(/fixed\s+in\s+version (.+)\./)[1]
-            const CVEs =
+
+            const CVEIdentifier: string[] =
                 shortDescription
                     .match(/CVE\s+ID\s:\s((CVE-\d{4}-\d+\s)+)./)?.[1]
                     .trim()
                     .split(" ") || []
 
-            const result: Partial<TPotentialVulnerability> = {
-                shortDescription,
-                CVEs,
-                containsPackage: false,
-                fixedVersion,
-                currentVersion: undefined,
-                shortDescriptionFormatted,
-                similarNames: [],
-                ...issue,
-            }
-
-            result.currentVersion = (
+            const relizahPackages =
                 issue.system === "DSA" ? newestDSAPackages : newestDLAPackages
-            ).find((pack: string) => pack.match(`^(lib)?${issue.library}`))
-            result.similarNames = (
-                issue.system === "DSA" ? newestDSAPackages : newestDLAPackages
-            ).filter((pack: string) => pack.match(`${issue.library}`))
-            result.similarNames = result.similarNames.filter(
-                (name: string) => name !== result.currentVersion
+            const cveGroup = new CVEGroup(
+                CVEIdentifier.map((cveIdentifier) => new CVE(cveIdentifier))
             )
-            result.containsPackage = !!result.currentVersion
-            if (result.containsPackage) {
-                const CVEMapping = await scrapeCVEs(browser, CVEs)
-                console.log("CVE MAPPING FOR ", issue.summaryText, CVEMapping)
-                result.detailedCVEs = CVEMapping
-                result.highestCVE = getHighestCVE(CVEMapping)
+            const result: TPotentialVulnerability = {
+                shortDescription,
+                containsPackage: !!relizahPackages.find((pack: string) =>
+                    pack.match(`^(lib)?${issue.library}`)
+                ),
+                CVEs: cveGroup,
+                highestCVE: cveGroup.getHighestCve(),
+                fixedVersion,
+                currentVersion:
+                    relizahPackages.find((pack: string) =>
+                        pack.match(`^(lib)?${issue.library}`)
+                    ) || "undefined",
+                shortDescriptionFormatted,
+                similarNames: relizahPackages.filter(
+                    (pack: string) =>
+                        pack !==
+                            relizahPackages.find((pack: string) =>
+                                pack.match(`^(lib)?${issue.library}`)
+                            ) && pack.match(`${issue.library}`)
+                ),
+                ...issue,
             }
 
             results.push(result)
@@ -530,6 +355,33 @@ export default async (complete: boolean) => {
         .forEach((pack) => {
             console.log(`[FOUND] -> ${pack.library} (${pack.issueLink})`)
         })
+
+    const CVEs: CVEGroup[] = results
+        .filter((res) => res.containsPackage)
+        .map((res) => res.CVEs)
+
+    for (const cveGroup of CVEs) {
+        await cveGroup.scrapeAll(browser)
+    }
     await browser.close()
-    saveResult("results.json", results)
+
+    const serializedData: TPotentialVulnerabilitySerialized[] =
+        results.map(serializeResult)
+
+    saveResult("results.json", serializedData)
+}
+
+const serializeResult: (
+    result: TPotentialVulnerability
+) => TPotentialVulnerabilitySerialized = (result) => {
+    const resultClone = { ...result }
+    const CVEs = resultClone.CVEs
+    delete (resultClone as Partial<TPotentialVulnerability>).CVEs
+    const serialized: TPotentialVulnerabilitySerialized = {
+        ...resultClone,
+        system: resultClone.system,
+        CVEs: CVEs.cves.map((cve) => cve.serialize()),
+        highestCVE: CVEs.getHighestCve().serialize(),
+    }
+    return serialized
 }

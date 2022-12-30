@@ -1,3 +1,5 @@
+import { CVE, CVEGroup, TCVESerialized } from "./services/CVE"
+
 export type TRelizahSerialized = {
     meta: {
         lastFetched: Date
@@ -26,33 +28,34 @@ export type TJiraIssue = {
     system: EApplianceSystem
 }
 
-export type TCVEDetails = {
-    cve: string
-    nvd: TCVEParcelDetails
-    redhat: TCVEParcelDetails
-}
-
 export type TCVEParcelDetails = {
     CVSS3SeverityInt: number
     CVSS3SeverityString: string
+    site: ESeverityIntelligenceSites
 }
 
-export type THighestCVEParcel = {
-    nvd: TCVEParcelDetails
-    redhat: TCVEParcelDetails
+export enum ESeverityIntelligenceSites {
+    NVD = "NVD",
+    REDHAT = "REDHAT",
 }
 
 export type TPotentialVulnerability = TJiraIssue & {
+    CVEs: CVEGroup
+    highestCVE: CVE
     shortDescription: string
-    CVEs: string[]
-    detailedCVEs: TCVEDetails[]
     containsPackage: boolean
     fixedVersion: string
     currentVersion: string
     shortDescriptionFormatted: string
     similarNames: string[]
-    highestCVE: TCVEParcelDetails
 }
+
+export type TPotentialVulnerabilitySerialized = TJiraIssue &
+    Omit<TPotentialVulnerability, "highestCVE" | "CVEs" | "system"> & {
+        CVEs: TCVESerialized[]
+        highestCVE: TCVESerialized
+        system: string
+    }
 
 export enum ESeverityString {
     CRITICAL = "CRITICAL",
@@ -61,4 +64,8 @@ export enum ESeverityString {
     LOW = "LOW",
     LOG = "LOG",
     UNDEFINED = "UNDEFINED",
+}
+
+export interface IScrapingService {
+    scrapeCVE: (cve: string) => Promise<TCVEParcelDetails>
 }
