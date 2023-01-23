@@ -7,9 +7,9 @@ yarn-error.log*
 lerna-debug.log*
 
 
-cookies.json
-results.json
-relizah.json
+data/cookies.json
+data/results.json
+data/relizah.json
 
 .idea
 # Diagnostic reports (https://nodejs.org/api/report.html)

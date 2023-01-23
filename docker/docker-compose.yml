@@ -1,0 +1,9 @@
+services:
+  frontend:
+    image: esa
+    ports:
+      - "3000:3000"
+    environment:
+      - JIRA_USERNAME=mika.greif
+      - JIRA_PASSWORD=KUS$$+Atd2TB4dCsK
+      - CRONJOB_SCHEDULE=0 4,12 * * * *

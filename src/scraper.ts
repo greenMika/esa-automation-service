@@ -1,8 +1,10 @@
 import puppeteer, { Browser, Page } from "puppeteer"
+
 import { config } from "dotenv"
 import * as path from "path"
 
 config({ path: path.resolve(__dirname, "../.env") })
+
 import * as fs from "fs"
 import {
     TJiraIssue,
@@ -10,7 +12,8 @@ import {
     TPotentialVulnerabilitySerialized,
     TRelizahSerialized,
 } from "./types"
-import { CVE, CVEGroup, TCVESerialized } from "./services/CVE"
+import { CVE, CVEGroup } from "./services/CVE"
+import { cookiesPath, relizahPath, resultsPath } from "./constants"
 
 const username = process.env.JIRA_USERNAME
 const password = process.env.JIRA_PASSWORD
@@ -18,14 +21,12 @@ const password = process.env.JIRA_PASSWORD
 if (!username || !password)
     throw Error("Set JIRA_USERNAME and JIRA_PASSWORD in env")
 
-const relizahPath = "relizah.json"
-
 const saveResult = (
     name: string,
     results: TPotentialVulnerabilitySerialized[]
 ) => {
     fs.writeFileSync(name, JSON.stringify(results))
-    console.log("Saved to results.json")
+    console.log("Saved to ", resultsPath)
 }
 
 const getReLizahData = async (renew = false) => {
@@ -40,7 +41,7 @@ const getReLizahData = async (renew = false) => {
             relizahData?.meta?.lastFetched
         ).getTime()
         const oneDayAgo = Date.now() - 86400000
-        refetchData = dataPresent && lastFetchedDate < oneDayAgo
+        refetchData = lastFetchedDate < oneDayAgo
         if (refetchData) {
             console.log("Saved relizah data is outdated, refetching ...")
         } else {
@@ -71,7 +72,7 @@ const getReLizahData = async (renew = false) => {
     await page.waitForSelector("tr:first-child > td > button")
 
     await page.$$eval("tr:first-child > td > button", (buttons) => {
-        const detailButton = buttons
+        buttons
             .find((button) => button.innerHTML.match(/Details/))
             ?.dispatchEvent(new Event("click"))
     })
@@ -119,7 +120,7 @@ const getReLizahData = async (renew = false) => {
     )) as string[]
 
     console.log(newestDLAPackages, newestDSAPackages)
-    browser.close()
+    await browser.close()
 
     const relizahSerialized: TRelizahSerialized = {
         meta: {
@@ -157,23 +158,16 @@ const login = async (browser: Browser) => {
 }
 
 const getESAIssueList = async (browser: Browser) => {
-    console.log("1")
     const page = await login(browser)
-    console.log("2")
     await page.waitForSelector(".issuerow")
     // getting issues on just the first pagehttps://jira.greenbone.net/issues/?filterId=${layout.filterId}&startIndex=20
     const pages = await page.$$eval(".pagination > a", (pageButton) =>
         pageButton.map((d) => d.getAttribute("href"))
     )
-    console.log("3")
-
     pages.pop()
     let allIssues: TJiraIssue[] = []
-    console.log("7")
     for (const pageIndex in pages) {
         const link = pages[pageIndex]
-        console.log("5")
-
         const issues: TJiraIssue[] = (await page.$$eval(".issuerow", (rows) => {
             return rows.map((row) => {
                 const ID = row.querySelector(".issuekey > a")?.textContent
@@ -201,7 +195,7 @@ const getESAIssueList = async (browser: Browser) => {
         })) as TJiraIssue[]
         console.log(link, pageIndex, issues)
         if (parseInt(pageIndex) !== pages.length - 1) {
-            const pages = await page.$$eval(
+            await page.$$eval(
                 ".pagination > a",
                 (pageButton, index) =>
                     pageButton[index as unknown as number].dispatchEvent(
@@ -225,17 +219,17 @@ const getESAIssueList = async (browser: Browser) => {
 }
 
 const setCookies = async (page: Page) => {
-    if (!fs.existsSync("cookies.json")) {
-        fs.writeFileSync("cookies.json", "[]")
+    if (!fs.existsSync(cookiesPath)) {
+        fs.writeFileSync(cookiesPath, "[]")
     }
-    const foundCookies = JSON.parse(fs.readFileSync("cookies.json").toString())
+    const foundCookies = JSON.parse(fs.readFileSync(cookiesPath).toString())
     if (foundCookies) {
         await page.setCookie(...foundCookies)
     }
 }
 const saveCookiesToFile = async (page: Page) => {
     const cookies = await page.cookies()
-    await fs.writeFileSync("cookies.json", JSON.stringify(cookies))
+    fs.writeFileSync(cookiesPath, JSON.stringify(cookies))
 }
 
 const parseIssues = async (
@@ -293,11 +287,21 @@ const parseIssues = async (
             const cveGroup = new CVEGroup(
                 CVEIdentifier.map((cveIdentifier) => new CVE(cveIdentifier))
             )
+
+            const similarNames = relizahPackages.filter(
+                (pack: string) =>
+                    pack !==
+                        relizahPackages.find((pack: string) =>
+                            pack.match(`^(lib)?${issue.library}`)
+                        ) && pack.match(`${issue.library}`)
+            )
+
             const result: TPotentialVulnerability = {
                 shortDescription,
-                containsPackage: !!relizahPackages.find((pack: string) =>
-                    pack.match(`^(lib)?${issue.library}`)
-                ),
+                containsPackage:
+                    !!relizahPackages.find((pack: string) =>
+                        pack.match(`^(lib)?${issue.library}`)
+                    ) || similarNames.length > 0,
                 CVEs: cveGroup,
                 highestCVE: cveGroup.getHighestCve(),
                 fixedVersion,
@@ -306,13 +310,7 @@ const parseIssues = async (
                         pack.match(`^(lib)?${issue.library}`)
                     ) || "undefined",
                 shortDescriptionFormatted,
-                similarNames: relizahPackages.filter(
-                    (pack: string) =>
-                        pack !==
-                            relizahPackages.find((pack: string) =>
-                                pack.match(`^(lib)?${issue.library}`)
-                            ) && pack.match(`${issue.library}`)
-                ),
+                similarNames,
                 ...issue,
             }
 
@@ -327,7 +325,7 @@ const parseIssues = async (
             console.error(e)
         }
     }
-    return results as TPotentialVulnerability[]
+    return results
 }
 
 export default async (complete: boolean) => {
@@ -337,10 +335,10 @@ export default async (complete: boolean) => {
     let issues = (await getESAIssueList(browser)) as TJiraIssue[]
 
     if (!complete) {
-        if (!fs.existsSync("results.json"))
+        if (!fs.existsSync(resultsPath))
             return console.error("Please scrape the data first")
         const results: TPotentialVulnerability[] = JSON.parse(
-            fs.readFileSync("results.json").toString()
+            fs.readFileSync(resultsPath).toString()
         )
         issues = issues.filter((is) => !results.find((res) => res.ID === is.ID))
     }
@@ -368,7 +366,7 @@ export default async (complete: boolean) => {
     const serializedData: TPotentialVulnerabilitySerialized[] =
         results.map(serializeResult)
 
-    saveResult("results.json", serializedData)
+    saveResult(resultsPath, serializedData)
 }
 
 const serializeResult: (

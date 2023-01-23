@@ -35,24 +35,30 @@
                 <th>Library</td>
                 <th>Current version</td>
                 <th>Fixed version</td>
+                <th>Top CVEs</td>
                 <th>Similar Names</td>
-                <th>Actions</td>
+                <th>Shortened Description</td>
             </tr>
         </thead>
         <tbody>
             {% for result in results %}
               <tr class="{% if result.containsPackage %}affected{% else %}unaffected{% endif %}" >
-                <td><a href={{result.issueLink}} target="_blank">{{ result.summaryText }}</a></td>
                 <td>
-                    <span {% if result.highestCVE.CVSS3SeverityString %}class="severity-badge {{ result.highestCVE.CVSS3SeverityString }}"{% endif %}>
-                        {% if result.highestCVE.CVSS3SeverityInt !== 0 %}{{ result.highestCVE.CVSS3SeverityInt }}{% else %}not found{% endif %}
+                    <div>Title: {{ result.summaryText }}</ div>
+                    <div>ESA: <a href={{result.issueLink}} target="_blank">{{ result.ID }}</a></ div>
+                    <div>System: {{ result.system }}</ div>
+                </td>
+                <td>
+                    <span {% if result.highestCVE.highestSeverityTerm %}class="severity-badge {{ result.highestCVE.highestSeverityTerm }}"{% endif %}>
+                        {% if result.highestCVE.highestSeverity !== 0 %}{{ result.highestCVE.highestSeverity }}{% else %}not found{% endif %}
                     </span>
                 </td>
                 <td>{{ result.library }}</td>
                 <td>{{ result.currentVersion }}</td>
                 <td>{{ result.fixedVersion }}</td>
+                <td>{% if result.containsPackage === true %}{{ result.CVEs | striptags(true) | escape | nl2br }}{% else %}Not affected{% endif %}</td>
                 <td>{{ result.similarNames | join(",\n") | striptags(true) | escape | nl2br }}</td>
-                <td><button onclick="(() => { navigator.clipboard.writeText(`{{ result.shortDescriptionFormatted }}`) })()">Copy</button></td>
+                <td><button onclick="(() => { navigator.clipboard.writeText(`{{ result.shortDescriptionFormatted }}`) })()">Click to Copy</button></td>
               </tr>
             {% else %}
               <tr>This would display if the 'item' collection were empty</tr>

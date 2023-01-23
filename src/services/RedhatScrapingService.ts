@@ -27,7 +27,7 @@ export class RedhatScrapingService implements IScrapingService {
                 const CVSS3SeverityInt = elem[1].textContent || "0"
                 const CVSS3SeverityString = elem[0].textContent || "UNDEFINED"
                 return {
-                    CVSS3SeverityInt: parseInt(CVSS3SeverityInt),
+                    CVSS3SeverityInt: parseFloat(CVSS3SeverityInt),
                     CVSS3SeverityString,
                     site: "REDHAT",
                 }

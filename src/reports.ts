@@ -5,15 +5,17 @@ import {
     TPotentialVulnerability,
     TPotentialVulnerabilitySerialized,
 } from "./types"
+import { resultsPath, staticPath } from "./constants"
+import path from "path"
 
 export const printAffected = () => {
-    if (!fs.existsSync("results.json"))
+    console.log("Printing affected packages ...")
+    if (!fs.existsSync(resultsPath))
         return console.error("Please scrape the data first")
     const results: TPotentialVulnerabilitySerialized[] = JSON.parse(
-        fs.readFileSync("results.json").toString()
+        fs.readFileSync(resultsPath).toString()
     )
     const affected = results.filter((res) => res.containsPackage)
-    console.log(affected[0])
     const headers = [
         "ESA",
         "Library",
@@ -28,7 +30,14 @@ export const printAffected = () => {
         res.library,
         res.currentVersion,
         res.fixedVersion,
-        res.CVEs.map((cve) => cve.cveIdentifier).join(",\n"),
+        [
+            ...res.CVEs.sort((a, b) => {
+                return b.highestSeverity - a.highestSeverity
+            }),
+        ]
+            .splice(0, 4)
+            .map((cve) => `${cve.cveIdentifier} - ${cve.highestSeverity}`)
+            .join(",\n"),
         res.similarNames.join(",\n"),
         `${res.highestCVE.highestSeverity} - ${res.highestCVE?.highestSeverityTerm}`,
     ])
@@ -36,9 +45,10 @@ export const printAffected = () => {
 }
 
 export const printUnaffected = () => {
-    if (!fs.existsSync("results.json"))
+    console.log("Printing unaffected packages ...")
+    if (!fs.existsSync(resultsPath))
         return console.error("Please scrape the data first")
-    const results = JSON.parse(fs.readFileSync("results.json").toString())
+    const results = JSON.parse(fs.readFileSync(resultsPath).toString())
     const unaffected = results.filter(
         (res: TPotentialVulnerability) => !res.containsPackage
     )
@@ -57,9 +67,21 @@ export const printUnaffected = () => {
 }
 
 export const generateHTML = () => {
-    if (!fs.existsSync("results.json"))
+    if (!fs.existsSync(resultsPath))
         return console.error("Please scrape the data first")
-    const results = JSON.parse(fs.readFileSync("results.json").toString())
-    const renderedHTML = nunjucks.render("template.njk", { results })
-    fs.writeFileSync("dist/rendered.html", renderedHTML)
+    const results: TPotentialVulnerabilitySerialized[] = JSON.parse(
+        fs.readFileSync(resultsPath).toString()
+    )
+    const mappedResults = results.map((result) => ({
+        ...result,
+        CVEs: result.CVEs.sort((a, b) => b.highestSeverity - a.highestSeverity)
+            .splice(0, 4)
+            .map((cve) => `${cve.cveIdentifier} - ${cve.highestSeverity}`)
+            .join(",\n"),
+    }))
+    const renderedHTML = nunjucks.render(
+        path.resolve(__dirname, "./template.njk"),
+        { results: mappedResults }
+    )
+    fs.writeFileSync(staticPath + "/rendered.html", renderedHTML)
 }

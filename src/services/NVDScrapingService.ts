@@ -26,7 +26,7 @@ export class NVDScrapingService implements IScrapingService {
                     const [CVSS3SeverityInt, CVSS3SeverityString] =
                         elem?.textContent?.split(" ") || ["0", "UNDEFINED"]
                     return {
-                        CVSS3SeverityInt: parseInt(CVSS3SeverityInt),
+                        CVSS3SeverityInt: parseFloat(CVSS3SeverityInt),
                         CVSS3SeverityString,
                         site: "NVD",
                     }
@@ -35,7 +35,7 @@ export class NVDScrapingService implements IScrapingService {
                     const [CVSS3SeverityInt, CVSS3SeverityString] =
                         elem?.textContent?.split(" ") || ["0", "UNDEFINED"]
                     return {
-                        CVSS3SeverityInt: parseInt(CVSS3SeverityInt),
+                        CVSS3SeverityInt: parseFloat(CVSS3SeverityInt),
                         CVSS3SeverityString,
                         site: "NVD",
                     }

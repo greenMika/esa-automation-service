@@ -6,6 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node ./dist/main.js",
+    "daemon": "node ./dist/daemon.js",
+    "daemon:dev": "ts-node src/daemon.ts",
     "dev": "ts-node --esm src/main.ts",
     "build": "tsc",
     "pretty:check": "prettier --check ./src",
@@ -17,6 +19,8 @@
   "devDependencies": {
     "@types/command-line-args": "^5.2.0",
     "@types/command-line-usage": "^5.0.2",
+    "@types/express": "^4.17.15",
+    "@types/node-cron": "^3.0.7",
     "@types/nunjucks": "^3.2.1",
     "@typescript-eslint/eslint-plugin": "^5.47.1",
     "command-line-args": "^5.2.1",
@@ -24,14 +28,16 @@
     "eslint": "^8.30.0",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-prettier": "^4.2.1",
-    "nunjucks": "^3.2.3",
     "prettier": "^2.8.1",
-    "puppeteer": "^19.2.2",
     "table": "^6.8.1",
     "ts-node": "^10.9.1",
     "typescript": "^4.9.4"
   },
   "dependencies": {
-    "dotenv": "^16.0.3"
+    "puppeteer": "^19.2.2",
+    "nunjucks": "^3.2.3",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "node-cron": "^3.0.2"
   }
 }
